@@ -1,7 +1,7 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Mint, Token, TokenAccount};
 
-declare_id!("67C39nnxzG6iu1BHBimYQabPyXrgMZ3Eqk5VzurcnP8Z"); // Replace with `anchor keys list` output
+declare_id!("67C39nnxzG6iu1BHBimYQabPyXrgMZ3Eqk5VzurcnP8Z");
 
 #[error_code]
 pub enum ErrorCode{
@@ -87,10 +87,9 @@ pub mod minimal_solana_token_vault {
         Ok(())
     }
     pub fn withdraw(ctx: Context<Withdraw>, amount: u64) -> Result<()> {
-        // Define the seeds for the vault_authority PDA
         let vault_authority_seeds = &[
             b"vault-authority".as_ref(),
-            &[ctx.bumps.vault_authority], // Use the bump from the context
+            &[ctx.bumps.vault_authority],
         ];
         
         let fee = amount
@@ -109,12 +108,11 @@ pub mod minimal_solana_token_vault {
                     to:ctx.accounts.fee_vault.to_account_info(),
                     authority: ctx.accounts.vault_authority.to_account_info(),
                 },
-                &[&vault_authority_seeds[..]], // Pass the seeds for PDA signing
+                &[&vault_authority_seeds[..]],
             ),
             fee,
         )?;
  
-        // Transfer SPL tokens from vault to user
         token::transfer(
             CpiContext::new_with_signer(
                 ctx.accounts.token_program.to_account_info(),
@@ -123,7 +121,7 @@ pub mod minimal_solana_token_vault {
                     to: ctx.accounts.user_token_account.to_account_info(),
                     authority: ctx.accounts.vault_authority.to_account_info(),
                 },
-                &[&vault_authority_seeds[..]], // Pass the seeds for PDA signing
+                &[&vault_authority_seeds[..]],
             ),
             amount_after_fee,
         )?;
@@ -224,7 +222,7 @@ pub struct InitializeFeeVault<'info> {
         token::authority = vault_authority,
     )]
     pub fee_vault: Account<'info, TokenAccount>,
-    /// CHECK: This PDA is used only as a signing authority, no data is read or written.
+/// CHECK: This PDA is used only as a signing authority, no data is read or written.
     #[account(
         seeds = [b"vault-authority"],
         bump,
