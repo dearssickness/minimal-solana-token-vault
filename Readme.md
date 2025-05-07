@@ -42,6 +42,7 @@ After applying the fix you can do:
 
 
 ```bash
+npm i -D tsx
 anchor build
 anchor deploy
 

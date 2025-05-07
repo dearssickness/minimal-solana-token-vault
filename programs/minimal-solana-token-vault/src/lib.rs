@@ -114,12 +114,6 @@ pub mod minimal_solana_token_vault {
         
         let clock = Clock::get()?;
         let user_vault = &ctx.accounts.user_vault;
-        //
-        // Check if the deposit is still locked
-        require!(
-            clock.unix_timestamp >= user_vault.unlock_timestamp,
-            ErrorCode::DepositLocked
-        );
         
         let vault_balance = ctx.accounts.token_vault.amount;
         require!(vault_balance >= amount, ErrorCode::InsufficientVaultBalance);
@@ -128,8 +122,14 @@ pub mod minimal_solana_token_vault {
             b"vault-authority".as_ref(),
             &[ctx.bumps.vault_authority],
         ];
+            
+        // Determine fee based on lock status
+        let is_locked = clock.unix_timestamp < user_vault.unlock_timestamp;
+        let fee_percentage = if is_locked {5} else {1}; // 5% fee if locked, 1% if unlocked
         
         let fee = amount
+            .checked_mul(fee_percentage)
+            .ok_or_else(|| error!(ErrorCode::ArithmeticError))?
             .checked_div(100)
             .ok_or_else(|| error!(ErrorCode::ArithmeticError))?;
         
@@ -137,6 +137,7 @@ pub mod minimal_solana_token_vault {
             .checked_sub(fee)
             .ok_or_else(|| error!(ErrorCode::InsufficientAmount))?;
         
+        // Transfer fee to fee_vault
         token::transfer(
             CpiContext::new_with_signer(
                 ctx.accounts.token_program.to_account_info(),
@@ -149,7 +150,8 @@ pub mod minimal_solana_token_vault {
             ),
             fee,
         )?;
- 
+        
+        // Transfer remaining amount to user
         token::transfer(
             CpiContext::new_with_signer(
                 ctx.accounts.token_program.to_account_info(),
@@ -162,6 +164,7 @@ pub mod minimal_solana_token_vault {
             ),
             amount_after_fee,
         )?;
+
         emit!(WithdrawEvent {
             user: ctx.accounts.user.key(),
             vault: ctx.accounts.token_vault.key(),
@@ -170,6 +173,7 @@ pub mod minimal_solana_token_vault {
             amount_after_fee,
             timestamp: Clock::get()?.unix_timestamp,
         });
+
         Ok(())
     }
 }

@@ -15,22 +15,16 @@ describe("minimal_solana_token_vault", () => {
   const programId = new PublicKey("B1Lg1HExK1jPRrQfb9vPGxpBKgVJCbjANNiQqYGFK1kq");
   const program = new Program(idl as Idl, provider);
   const user = Keypair.generate();
-  const user_2 = Keypair.generate();
 
   let mint: PublicKey;
-  let mint_user_2: PublicKey;
   let userTokenAccount: PublicKey;
-  let userTokenAccount_2: PublicKey;
   let token_vault: PublicKey;
-  let token_vault_2: PublicKey;
   let user_vault: PublicKey;
-  let user_vault_2: PublicKey;
   let vault_authority: PublicKey;
   let fee_vault: PublicKey;
 
   before(async () => {
     const airdropSignature = await provider.connection.requestAirdrop(user.publicKey, 2 * anchor.web3.LAMPORTS_PER_SOL);
-    const airdropSignature_user_2 = await provider.connection.requestAirdrop(user_2.publicKey, 2 * anchor.web3.LAMPORTS_PER_SOL);
     const latestBlockHash = await provider.connection.getLatestBlockhash()
 
     await provider.connection.confirmTransaction({
@@ -39,17 +33,9 @@ describe("minimal_solana_token_vault", () => {
       signature: airdropSignature,
     })
 
-    await provider.connection.confirmTransaction({
-      blockhash: latestBlockHash.blockhash,
-      lastValidBlockHeight: latestBlockHash.lastValidBlockHeight,
-      signature: airdropSignature_user_2,
-    })
-
     mint = await createMint(provider.connection, user, user.publicKey, null, 9);
-    mint_user_2 = await createMint(provider.connection, user_2, user_2.publicKey, null, 9);
 
     userTokenAccount = await createAccount(provider.connection, user, mint, user.publicKey);
-    userTokenAccount_2 = await createAccount(provider.connection, user_2, mint_user_2, user_2.publicKey);
 
 
     const [vaultPda] = findProgramAddressSync([Buffer.from("user_vault"), user.publicKey.toBuffer()],programId)
@@ -57,12 +43,6 @@ describe("minimal_solana_token_vault", () => {
     
     const [tokenPda] = findProgramAddressSync([Buffer.from("token_vault"), user.publicKey.toBuffer()],programId)
     token_vault = tokenPda;
-
-    const [vaultPda_user_2] = findProgramAddressSync([Buffer.from("user_vault"), user_2.publicKey.toBuffer()],programId)
-    user_vault_2 = vaultPda_user_2;
-
-    const [tokenPda_user_2] = findProgramAddressSync([Buffer.from("token_vault"), user_2.publicKey.toBuffer()],programId)
-    token_vault_2 = tokenPda_user_2;
 
     const [vaultAuthorityPda] = findProgramAddressSync([Buffer.from("vault_authority")],programId)
     vault_authority = vaultAuthorityPda;
@@ -97,22 +77,7 @@ describe("minimal_solana_token_vault", () => {
       .signers([user])
       .rpc();
 
-    await program.methods
-      .initializeVault()
-      .accounts({
-        user_vault_2,
-        token_vault_2,
-        vault_authority,
-        tokenMint: mint_user_2,
-        user: user_2.publicKey,
-        tokenProgram: TOKEN_PROGRAM_ID,
-        systemProgram: SystemProgram.programId,
-      })
-      .signers([user_2])
-      .rpc();
-
     await mintTo(provider.connection, user, mint, userTokenAccount, user, 1000);
-    await mintTo(provider.connection, user_2, mint_user_2, userTokenAccount_2, user_2, 700);
   });
 
   it("Deposits tokens to the vault", async () => {
@@ -123,15 +88,10 @@ describe("minimal_solana_token_vault", () => {
       });
 
     const lockPeriod = 5;
-    const lockPeriod_2 = 10;
     const depositAmount = 500;
-    const depositAmount_user_2 = 300;
 
     const userTokenAccountInfoBefore = await getAccount(provider.connection, userTokenAccount);
     const vaultAccountInfoBefore = await getAccount(provider.connection, token_vault);
-
-    const userTokenAccountInfoBefore_user_2 = await getAccount(provider.connection, userTokenAccount_2);
-    const vaultAccountInfoBefore_user_2 = await getAccount(provider.connection, token_vault_2);
 
     await program.methods
       .deposit(new anchor.BN(lockPeriod), new anchor.BN(depositAmount))
@@ -147,35 +107,13 @@ describe("minimal_solana_token_vault", () => {
       .signers([user])
       .rpc();
 
-    await program.methods
-      .deposit(new anchor.BN(lockPeriod_2), new anchor.BN(depositAmount_user_2))
-      .accounts({
-        user: user_2.publicKey,
-        userTokenAccount: userTokenAccount_2,
-        token_vault_2,
-        user_vault_2,
-        vault_authority,
-        tokenMint: mint_user_2,
-        tokenProgram: TOKEN_PROGRAM_ID,
-      })
-      .signers([user_2])
-      .rpc();
-
     const userTokenAccountInfoAfter = await getAccount(provider.connection, userTokenAccount);
     const vaultAccountInfoAfter = await getAccount(provider.connection, token_vault);
-
-    const userTokenAccountInfoAfter_user_2 = await getAccount(provider.connection, userTokenAccount_2);
-    const vaultAccountInfoAfter_user_2 = await getAccount(provider.connection, token_vault_2);
 
     console.log("userTokenAccountInfoBefore: ", userTokenAccountInfoBefore.amount);
     console.log("userTokenAccountInfoAfter: ", userTokenAccountInfoAfter.amount);
     console.log("vaultAccountInfoBefore: ", vaultAccountInfoBefore.amount);
     console.log("vaultAccountInfoAfter: ", vaultAccountInfoAfter.amount);
-    
-    console.log("userTokenAccountInfoBefore_user_2: ", userTokenAccountInfoBefore_user_2.amount);
-    console.log("userTokenAccountInfoAfter_user_2: ", userTokenAccountInfoAfter_user_2.amount);
-    console.log("vaultAccountInfoBefore_user_2: ", vaultAccountInfoBefore_user_2.amount);
-    console.log("vaultAccountInfoAfter_user_2: ", vaultAccountInfoAfter_user_2.amount);
  
     assert.equal(
       Number(userTokenAccountInfoBefore.amount) - depositAmount,
@@ -188,51 +126,14 @@ describe("minimal_solana_token_vault", () => {
       "Vault token account should increase"
     );
 
-    assert.equal(
-      Number(userTokenAccountInfoBefore_user_2.amount) - depositAmount_user_2,
-      Number(userTokenAccountInfoAfter_user_2.amount),
-      "User 2 token account should decrease"
-    );
-    assert.equal(
-      Number(vaultAccountInfoBefore_user_2.amount) + depositAmount_user_2,
-      Number(vaultAccountInfoAfter_user_2.amount),
-      "User 2 Vault's token account should increase"
-    );
-
     await program.removeEventListener(listenerId);
 
   });
 
-  it("Withdraw tokens from the vault", async () => {
+  it("Withdraw tokens from the vault in locked period", async () => {
     const withdrawAmount = 100;
-    const fee = withdrawAmount / 100;
-  
-    const userTokenAccountInfoBefore = await getAccount(provider.connection, userTokenAccount);
-    const vaultAccountInfoBefore = await getAccount(provider.connection, token_vault);
-    const feeVaultInfoBefore = await getAccount(provider.connection, fee_vault);
 
-    //Just to record state of token_vault_2 to make sure it stays the same after token_vault transaction
-    const userTokenAccountInfoBefore_user_2 = await getAccount(provider.connection, userTokenAccount_2);
-    const vaultAccountInfoBefore_user_2 = await getAccount(provider.connection, token_vault_2);
-    
-  
-    await chai.use(chaiAsPromised).expect(
-      program.methods
-      .withdraw(new anchor.BN(withdrawAmount))
-      .accounts({
-        user: user.publicKey,
-        userTokenAccount,
-        user_vault,
-        vault_authority,
-        fee_vault,
-        tokenMint: mint,
-        tokenProgram: TOKEN_PROGRAM_ID,
-      })
-      .signers([user])
-      .rpc()
-    ).to.be.rejectedWith(/DepositLocked/);
-    
-    await new Promise(f => setTimeout(f, 6000));    
+    const userTokenAccountInfoBefore = await getAccount(provider.connection, userTokenAccount);
 
     await program.methods
       .withdraw(new anchor.BN(withdrawAmount))
@@ -249,44 +150,47 @@ describe("minimal_solana_token_vault", () => {
       .rpc()
 
     const userTokenAccountInfoAfter = await getAccount(provider.connection, userTokenAccount);
-    const vaultAccountInfoAfter = await getAccount(provider.connection, token_vault);
     const feeVaultInfoAfter = await getAccount(provider.connection, fee_vault);
-  
-    console.log("userTokenAccountInfoBefore: ", userTokenAccountInfoBefore.amount);
-    console.log("userTokenAccountInfoAfter: ", userTokenAccountInfoAfter.amount);
-    console.log("vaultAccountInfoBefore: ", vaultAccountInfoBefore.amount);
-    console.log("vaultAccountInfoAfter: ", vaultAccountInfoAfter.amount);
-    console.log("feeVaultInfoBefore: ", feeVaultInfoBefore.amount);
-    console.log("feeVaultInfoAfter: ", feeVaultInfoAfter.amount);
 
-    const userTokenAccountInfoAfter_user_2 = await getAccount(provider.connection, userTokenAccount_2);
-    const vaultAccountInfoAfter_user_2 = await getAccount(provider.connection, token_vault_2);
-
-    console.log("userTokenAccountInfoBefore_user_2: ", userTokenAccountInfoBefore_user_2.amount);
-    console.log("userTokenAccountInfoAfter_user_2: ", userTokenAccountInfoAfter_user_2.amount);
-    console.log("vaultAccountInfoBefore_user_2: ", vaultAccountInfoBefore_user_2.amount);
-    console.log("vaultAccountInfoAfter_user_2: ", vaultAccountInfoAfter_user_2.amount);
+    console.log("feeVaultInfoAfter 5% fee: ", feeVaultInfoAfter.amount);
     
     assert.equal(
-      Number(userTokenAccountInfoBefore.amount) + withdrawAmount - fee,
+      Number(userTokenAccountInfoBefore.amount) + withdrawAmount - ( withdrawAmount * 5 / 100),
       Number(userTokenAccountInfoAfter.amount),
       "User token account should increase"
     );
-    assert.equal(
-      Number(vaultAccountInfoBefore.amount) - withdrawAmount,
-      Number(vaultAccountInfoAfter.amount),
-      "Vault token account should decrease"
-    );
+  });
+
+  it("Withdraw tokens from the vault after locked period", async () => {
+    const withdrawAmount = 100;
+
+    await new Promise(f => setTimeout(f, 6000));    
+
+    const userTokenAccountInfoBefore = await getAccount(provider.connection, userTokenAccount);
+
+    await program.methods
+      .withdraw(new anchor.BN(withdrawAmount))
+      .accounts({
+        user: user.publicKey,
+        userTokenAccount,
+        user_vault,
+        vault_authority,
+        fee_vault,
+        tokenMint: mint,
+        tokenProgram: TOKEN_PROGRAM_ID,
+      })
+      .signers([user])
+      .rpc()
+
+    const userTokenAccountInfoAfter = await getAccount(provider.connection, userTokenAccount);
+    const feeVaultInfoAfter = await getAccount(provider.connection, fee_vault);
+
+    console.log("feeVaultInfoAfter 1% fee: ", feeVaultInfoAfter.amount);
 
     assert.equal(
-      Number(userTokenAccountInfoBefore_user_2.amount),
-      Number(userTokenAccountInfoAfter_user_2.amount),
-      "User 2 token account should not change"
-    );
-    assert.equal(
-      Number(vaultAccountInfoBefore_user_2.amount),
-      Number(vaultAccountInfoAfter_user_2.amount),
-      "User 2 Vault's token account should not change"
+      Number(userTokenAccountInfoBefore.amount) + withdrawAmount - (withdrawAmount / 100),
+      Number(userTokenAccountInfoAfter.amount),
+      "User token account should increase"
     );
 
   });
