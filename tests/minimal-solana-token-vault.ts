@@ -195,4 +195,30 @@ describe("minimal_solana_token_vault", () => {
 
   });
 
+  it("Extend locked period", async () => {
+    const extend_duration = 100; // Extend by 100 seconds
+    const userVaultBefore = await program.account.userVault.fetch(user_vault); // Fetch user_vault account
+  
+    await program.methods
+      .extend(new anchor.BN(extend_duration))
+      .accounts({
+        user: user.publicKey,
+        user_vault,
+        token_vault,
+      })
+      .signers([user])
+      .rpc();
+  
+    const userVaultAfter = await program.account.userVault.fetch(user_vault);
+    
+    console.log("userVaultBefore: ", userVaultBefore.unlockTimestamp.toNumber())
+    console.log("userVaultAfter: ", userVaultAfter.unlockTimestamp.toNumber())
+  
+    assert.equal(
+      userVaultBefore.unlockTimestamp.toNumber() + extend_duration,
+      userVaultAfter.unlockTimestamp.toNumber(),
+      "Unlock timestamp should extend by the specified duration"
+    );
+  });
+
 });
