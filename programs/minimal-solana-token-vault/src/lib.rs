@@ -3,6 +3,9 @@ use anchor_spl::token::{self, Mint, Token, TokenAccount};
 
 declare_id!("B1Lg1HExK1jPRrQfb9vPGxpBKgVJCbjANNiQqYGFK1kq");
 
+const MAX_LOCK_PERIOD: u64 = 31_536_000; // 1 year in seconds
+const MAX_EXTEND_PERIOD: u64 = 31_536_000;
+
 #[error_code]
 pub enum ErrorCode{
     #[msg("Arithmetic error during fee calculation")]
@@ -15,6 +18,10 @@ pub enum ErrorCode{
     DepositLocked,
     #[msg("Insufficient balance in vault")]
     InsufficientVaultBalance,
+    #[msg("Invalid lock period")]
+    InvalidLockPeriod,
+    #[msg("Invalid extend period")]
+    InvalidExtendPeriod,
 }
 
 #[event]
@@ -37,6 +44,15 @@ pub struct DepositEvent {
     pub vault: Pubkey,
     pub amount: u64,
     pub lock_period: u64,
+    pub unlock_timestamp: i64,
+    pub timestamp: i64,
+}
+
+#[event]
+pub struct ExtendEvent {
+    pub user: Pubkey,
+    pub vault: Pubkey,
+    pub extend_period: u64,
     pub unlock_timestamp: i64,
     pub timestamp: i64,
 }
@@ -78,6 +94,8 @@ pub mod minimal_solana_token_vault {
     pub fn deposit(ctx: Context<Deposit>, lock_period: u64, amount: u64) -> Result<()> {
         // Security checks
         require!(ctx.accounts.user.is_signer, ErrorCode::MissingSignature);
+                
+        require!(lock_period > 0 && lock_period <= MAX_LOCK_PERIOD, ErrorCode::InvalidLockPeriod);
         
         let clock = Clock::get()?;
         let unlock_timestamp = clock.unix_timestamp + lock_period as i64;
@@ -108,6 +126,30 @@ pub mod minimal_solana_token_vault {
         });
         Ok(())
     }
+    
+    pub fn extend(ctx: Context<Extend>, extend_period: u64) -> Result<()> {
+        // Security checks
+        require!(ctx.accounts.user.is_signer, ErrorCode::MissingSignature);
+        require!(extend_period > 0 && extend_period <= MAX_EXTEND_PERIOD, ErrorCode::InvalidExtendPeriod);
+    
+        let user_vault = &mut ctx.accounts.user_vault;
+        let new_unlock_timestamp = user_vault.unlock_timestamp
+            .checked_add(extend_period as i64)
+            .ok_or_else(|| error!(ErrorCode::ArithmeticError))?;
+        user_vault.unlock_timestamp = new_unlock_timestamp;
+    
+        let clock = Clock::get()?;
+        
+        emit!(ExtendEvent {
+            user: ctx.accounts.user.key(),
+            vault: ctx.accounts.token_vault.key(),
+            extend_period,
+            unlock_timestamp: user_vault.unlock_timestamp,
+            timestamp: clock.unix_timestamp,
+        });
+        Ok(())
+    }
+   
     pub fn withdraw(ctx: Context<Withdraw>, amount: u64) -> Result<()> {
         // Security checks
         require!(ctx.accounts.user.is_signer, ErrorCode::MissingSignature);
@@ -294,6 +336,24 @@ pub struct InitializeFeeVault<'info> {
     pub initializer: Signer<'info>,
     pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct Extend<'info> {
+    #[account(
+        mut,
+        seeds = [b"user_vault", user.key().as_ref()],
+        bump,
+    )]
+    pub user_vault: Account<'info, UserVault>,
+    #[account(mut)]
+    pub user: Signer<'info>,
+    #[account(
+        mut,
+        seeds = [b"token_vault", user.key().as_ref()],
+        bump,
+    )]
+    pub token_vault: Account<'info, TokenAccount>,
 }
 
 #[account]
