@@ -110,11 +110,6 @@ describe("minimal_solana_token_vault", () => {
     const userTokenAccountInfoAfter = await getAccount(provider.connection, userTokenAccount);
     const vaultAccountInfoAfter = await getAccount(provider.connection, token_vault);
 
-    console.log("userTokenAccountInfoBefore: ", userTokenAccountInfoBefore.amount);
-    console.log("userTokenAccountInfoAfter: ", userTokenAccountInfoAfter.amount);
-    console.log("vaultAccountInfoBefore: ", vaultAccountInfoBefore.amount);
-    console.log("vaultAccountInfoAfter: ", vaultAccountInfoAfter.amount);
- 
     assert.equal(
       Number(userTokenAccountInfoBefore.amount) - depositAmount,
       Number(userTokenAccountInfoAfter.amount),
@@ -150,10 +145,7 @@ describe("minimal_solana_token_vault", () => {
       .rpc()
 
     const userTokenAccountInfoAfter = await getAccount(provider.connection, userTokenAccount);
-    const feeVaultInfoAfter = await getAccount(provider.connection, fee_vault);
 
-    console.log("feeVaultInfoAfter 5% fee: ", feeVaultInfoAfter.amount);
-    
     assert.equal(
       Number(userTokenAccountInfoBefore.amount) + withdrawAmount - ( withdrawAmount * 5 / 100),
       Number(userTokenAccountInfoAfter.amount),
@@ -183,9 +175,6 @@ describe("minimal_solana_token_vault", () => {
       .rpc()
 
     const userTokenAccountInfoAfter = await getAccount(provider.connection, userTokenAccount);
-    const feeVaultInfoAfter = await getAccount(provider.connection, fee_vault);
-
-    console.log("feeVaultInfoAfter 1% fee: ", feeVaultInfoAfter.amount);
 
     assert.equal(
       Number(userTokenAccountInfoBefore.amount) + withdrawAmount - (withdrawAmount / 100),
@@ -211,9 +200,6 @@ describe("minimal_solana_token_vault", () => {
   
     const userVaultAfter = await program.account.userVault.fetch(user_vault);
     
-    console.log("userVaultBefore: ", userVaultBefore.unlockTimestamp.toNumber())
-    console.log("userVaultAfter: ", userVaultAfter.unlockTimestamp.toNumber())
-  
     assert.equal(
       userVaultBefore.unlockTimestamp.toNumber() + extend_duration,
       userVaultAfter.unlockTimestamp.toNumber(),
