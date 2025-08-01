@@ -7,8 +7,18 @@ import { assert } from "chai";
 import * as chai from "chai";
 import chaiAsPromised from "chai-as-promised";
 import { findProgramAddressSync } from "@project-serum/anchor/dist/cjs/utils/pubkey";
+import * as bs58 from 'bs58';
 
 describe("minimal_solana_token_vault", () => {
+//To have static address for UI you can use this
+//let keypair = Keypair.generate();
+//console.log('Public Key (Base58):', keypair.publicKey.toBase58());
+//console.log('Secret Key (Base58):', bs58.encode(keypair.secretKey));
+
+  const secretKey = bs58.decode('4Dk8Em5xGyXWfiF4j3BsePcuK4oeeM1oSqcH2NXmnrvUJmuUopp9fsqwdSCMaidVi7gsTo6s2XWbh7ea487smj8e'); 
+  const mintKeypair = Keypair.fromSecretKey(secretKey);
+  const mint = mintKeypair.publicKey;
+
   const provider = anchor.AnchorProvider.env();
   anchor.setProvider(provider);
 
@@ -16,7 +26,6 @@ describe("minimal_solana_token_vault", () => {
   const program = new Program(idl as Idl, provider);
   const user = Keypair.generate();
 
-  let mint: PublicKey;
   let userTokenAccount: PublicKey;
   let token_vault: PublicKey;
   let user_vault: PublicKey;
@@ -33,7 +42,21 @@ describe("minimal_solana_token_vault", () => {
       signature: airdropSignature,
     })
 
-    mint = await createMint(provider.connection, user, user.publicKey, null, 9);
+    let mintAccount = await provider.connection.getAccountInfo(mint);
+    if (!mintAccount) {
+      await createMint(
+        provider.connection,
+        user,
+        user.publicKey,
+        null,
+        9,
+        mintKeypair
+      );
+    console.log('Mint created:', mint.toBase58());
+    } else {
+    console.log('Mint already exists:', mint.toBase58());
+    }
+//    mint = await createMint(provider.connection, user, user.publicKey, null, 9);
 
     userTokenAccount = await createAccount(provider.connection, user, mint, user.publicKey);
 
